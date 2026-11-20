@@ -151,6 +151,7 @@ dl.kv dt{color:#53615b}dl.kv dd{margin:0;overflow-wrap:anywhere}
 .hero.compact{padding-top:0}.hero.compact .packet{width:150px}.hero.compact h1,.hero.compact .lede,.hero.compact .stats{display:none}
 .nomatch{margin:4px 0 0;padding-top:14px;border-top:1px solid var(--line);color:var(--mute);font-size:14px}.nomatch b{color:var(--ink);font-weight:600}
 .fab.mini{padding:0 9px}.fab.mini .t{display:none}
+.boxed{margin:10px 0 0;padding:12px 14px;border-radius:12px;background:#3a1512;border:1px solid #7d2a22;font-size:14px;color:#ffd9d3}.boxed a{color:#fff;font-weight:700}
 .toast{position:fixed;z-index:60;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--paper);color:var(--paperInk);border-radius:999px;padding:10px 18px;font-weight:600;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s}
 .toast.on{opacity:1}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -172,6 +173,7 @@ dl.kv dt{color:#53615b}dl.kv dd{margin:0;overflow-wrap:anywhere}
 
   <!-- SEARCH -->
   <section class="view on" id="v-search" role="tabpanel" aria-labelledby="t-search">
+    <div class="boxed" id="boxed" hidden>This preview blocks the live archives, so only the Prize Papers will search here. For everything, open <a href="https://7itb7.github.io/sealed/" target="_blank" rel="noopener">7itb7.github.io/sealed</a> in Chrome.</div>
     <div class="hero">
       <svg class="packet" id="packet" viewBox="0 0 360 210" role="img" aria-label="A folded letter, sealed with red wax. Tap to break a seal.">
         <defs>
@@ -262,6 +264,7 @@ const enc=encodeURIComponent;
 const plain=h=>new DOMParser().parseFromString(String(h||''),'text/html').body.textContent.replace(/\s+/g,' ').trim();
 const first=v=>Array.isArray(v)?v[0]:v;
 const tcase=s=>String(s||'').replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()).replace(/\b(Of|And|The|For|In|To|A)\b/g,m=>m.toLowerCase()).replace(/^./,c=>c.toUpperCase());
+const setHash=h=>{try{history.replaceState(null,'','#'+h)}catch(e){}};
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const store={get(k,d){try{const v=localStorage.getItem('sealed:'+k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('sealed:'+k,JSON.stringify(v))}catch(e){}}};
 let toastT;
@@ -307,7 +310,7 @@ const SOURCES=[
     snipHtml:hl(snip(desc,ts),ts),snipText:snip(desc,ts),thumb:img.split('#')[0],tags:[],url:(r.url||r.id||'').replace(/^\/\//,'https://')}})}}},
  {id:'voc',name:'VOC General Missives',sub:'The Dutch East India Company\'s reports home from Batavia, 1610–1761. Every word, in Dutch.',c:'#9bd65a',glyph:'V',kind:'text',dutch:true,
   async run(q,pg,sig){const {pats,shown,mapped}=dutchPats(q);const d=await getJSON(`https://corpora.ato.ivdnt.org/blacklab-server/Missiven/docs?patt=${enc(blq(pats,true))}&number=8&first=${pg*8}&wordsaroundhit=12&outputformat=json`,sig,40000);if(d.error)throw new Error(d.error.message);
-   return{total:d.summary.numberOfDocs||0,note:`Searched the Dutch text for <b>${esc(shown.join(' '))}</b>${mapped?' (translated from your English)':''}.`,items:(d.docs||[]).map(x=>{const i=x.docInfo||{};const s=x.snippets&&x.snippets[0];const k=kwic(s);
+   return{total:Math.max(d.summary.numberOfDocs||0,(d.docs||[]).length),note:`Searched the Dutch text for <b>${esc(shown.join(' '))}</b>${mapped?' (translated from your English)':''}.`,items:(d.docs||[]).map(x=>{const i=x.docInfo||{};const s=x.snippets&&x.snippets[0];const k=kwic(s);
     return{key:'voc:'+x.docPid,src:'voc',title:first(i.titleLevel1)||'General Missive',meta:`Generale Missiven, vol. ${first(i.volume)||'?'}, p. ${first(i.page)||'?'} · ${x.numberOfHits} mention${x.numberOfHits==1?'':'s'}`,snipHtml:kwicHtml(s),snipText:k?`… ${k.L} ${k.M} ${k.R} …`:'',tags:[['Batavia to Amsterdam']],url:`https://corpora.ato.ivdnt.org/corpus-frontend/Missiven/docs/${enc(x.docPid)}`}})}}},
  {id:'ww1',name:'WWI letters and diaries',sub:'Family letters, diaries and postcards from every side of the First World War (Europeana 1914–1918).',c:'#b986ff',glyph:'W',kind:'cat',
   async run(q,pg,sig){const key=store.get('ekey','')||'api2demo';const d=await getJSON(`https://api.europeana.eu/record/v2/search.json?wskey=${enc(key)}&query=${enc(q)}&theme=ww1&qf=TYPE:TEXT&rows=10&start=${pg*10+1}&profile=standard`,sig,30000);if(d.success===false)throw new Error(d.error||'Europeana error');const ts=terms(q);
@@ -353,7 +356,7 @@ function crack(){const p=$('#packet');p.classList.remove('open');void p.getBBox(
 function search(q){q=q.trim();if(!q)return;cur.ctl&&cur.ctl.abort();cur={q,ctl:new AbortController(),res:{}};ITEMS={};$('#q').value=q;$('#start').hidden=true;$('.hero').classList.add('compact');$('#fab').classList.add('mini');crack();requestAnimationFrame(()=>$('#form').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));
   $('#results').innerHTML=SOURCES.filter(s=>on.includes(s.id)).map(s=>`<section class="sec" id="sec-${s.id}" style="--c:${s.c}" aria-live="polite"></section>`).join('');
   for(const s of SOURCES)if(on.includes(s.id)){cur.res[s.id]={pg:0,items:[],total:null,state:'loading',show:3};paint(s.id);runSrc(s.id)}
-  store.set('lastq',q);if(location.hash!=='#search')history.replaceState(null,'','#search')}
+  store.set('lastq',q);if(location.hash!=='#search')setHash('search')}
 async function runSrc(id){const s=SRC[id],r=cur.res[id],ctl=cur.ctl,q=cur.q;r.state='loading';paint(id);
   try{const out=await s.run(q,r.pg,ctl.signal);if(ctl!==cur.ctl)return;r.total=out.total;r.note=out.note||'';out.items.forEach(it=>{ITEMS[it.key]=it});r.items=r.items.concat(out.items);r.state='done';r.last=out.items.length}
   catch(e){if(ctl!==cur.ctl)return;r.state='error';r.err=e&&e.name==='AbortError'?'timed out':'could not be reached'}paint(id)}
@@ -457,7 +460,7 @@ function renderArch(){$('#archList').innerHTML=ARCH.map(([h,p,rows])=>`<h2 class
 
 /* ---------- routing ---------- */
 function go(v){if(!['search','case','archives'].includes(v))v='search';$$('.view').forEach(x=>x.classList.toggle('on',x.id==='v-'+v));$$('nav.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.go===v));$('#fab').hidden=v!=='search';
-  if(v==='case')renderCase();if(v==='archives')renderArch();if(location.hash!=='#'+v)history.replaceState(null,'','#'+v);window.scrollTo(0,0)}
+  if(v==='case')renderCase();if(v==='archives')renderArch();if(location.hash!=='#'+v)setHash(v);window.scrollTo(0,0)}
 addEventListener('hashchange',()=>go(location.hash.slice(1)));
 
 /* ---------- events ---------- */
@@ -485,6 +488,7 @@ $('#shClose').addEventListener('click',closeSheet);$('#scrim').addEventListener(
 addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 
 /* ---------- start ---------- */
+{let sb=false;try{sb=window.origin==='null'||/claudeusercontent|claude\.ai|claude\.site/.test(location.hostname)}catch(e){sb=true}$('#boxed').hidden=!sb}
 renderChips();countCase();go(location.hash.slice(1)||'search');
 const last=store.get('lastq','');if(last)$('#q').value=last;
 }
